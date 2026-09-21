@@ -1,8 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Quiz } from '../../types';
 import { useStudy } from '../../context/StudyContext';
 import { generateQuizFromTopic } from '../../lib/gemini';
-import { Sparkles, Play, Award, Loader2, BookOpen, Clock } from 'lucide-react';
+import { extractTextFromDocument } from '../../lib/pdfParser';
+import {
+  Sparkles,
+  Play,
+  Award,
+  Loader2,
+  BookOpen,
+  Clock,
+  FileUp,
+  FileText,
+  X,
+} from 'lucide-react';
 
 interface QuizGeneratorProps {
   onStartQuiz: (quiz: Quiz) => void;
@@ -17,23 +28,57 @@ export const QuizGenerator: React.FC<QuizGeneratorProps> = ({ onStartQuiz }) => 
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [showAiModal, setShowAiModal] = useState<boolean>(false);
 
+  // PDF upload for Quiz
+  const [uploadedDocName, setUploadedDocName] = useState<string | null>(null);
+  const [uploadedDocText, setUploadedDocText] = useState<string | null>(null);
+  const [isParsingPdf, setIsParsingPdf] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleFileUpload = async (file: File) => {
+    setIsParsingPdf(true);
+    try {
+      const doc = await extractTextFromDocument(file);
+      setUploadedDocName(doc.name);
+      setUploadedDocText(doc.text.slice(0, 4000));
+      // Pre-fill topic with document name
+      if (!topic) {
+        setTopic(doc.name.replace(/\.[^/.]+$/, ''));
+      }
+    } catch (err) {
+      console.error('PDF error:', err);
+      alert('Could not parse PDF. Ensure it has readable text.');
+    } finally {
+      setIsParsingPdf(false);
+    }
+  };
+
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!topic.trim()) return;
+    const targetTopic = uploadedDocText
+      ? `Material from document "${uploadedDocName}": ${uploadedDocText.slice(0, 2000)}`
+      : topic.trim();
+
+    if (!targetTopic) return;
 
     setIsGenerating(true);
     try {
-      const generatedQuestions = await generateQuizFromTopic(topic.trim(), questionCount, difficulty);
+      const generatedQuestions = await generateQuizFromTopic(targetTopic, questionCount, difficulty);
 
       addQuiz({
-        title: `${topic.trim()} Assessment`,
+        title: uploadedDocName
+          ? `Quiz: ${uploadedDocName.replace(/\.[^/.]+$/, '')}`
+          : `${topic.trim()} Assessment`,
         subject: 'AI Generated',
-        description: `Custom ${difficulty} difficulty quiz covering ${topic.trim()}`,
+        description: `Custom ${difficulty} difficulty practice quiz${
+          uploadedDocName ? ` synthesized from ${uploadedDocName}` : ` covering ${topic.trim()}`
+        }`,
         questions: generatedQuestions,
       });
 
       setShowAiModal(false);
       setTopic('');
+      setUploadedDocName(null);
+      setUploadedDocText(null);
     } catch (err) {
       console.error('Quiz generation error:', err);
     } finally {
@@ -112,24 +157,74 @@ export const QuizGenerator: React.FC<QuizGeneratorProps> = ({ onStartQuiz }) => 
       {showAiModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-100 dark:bg-purple-950/60 text-purple-500 rounded-xl">
-                <Sparkles className="w-5 h-5" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-purple-100 dark:bg-purple-950/60 text-purple-500 rounded-xl">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                  Generate Custom AI Quiz
+                </h3>
               </div>
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                Generate Custom AI Quiz
-              </h3>
+              <button
+                onClick={() => setShowAiModal(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
+
+            {/* PDF Upload Option */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.txt,.md"
+              className="hidden"
+              onChange={e => {
+                if (e.target.files && e.target.files[0]) {
+                  handleFileUpload(e.target.files[0]);
+                }
+              }}
+            />
+
+            {!uploadedDocName ? (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isParsingPdf}
+                className="w-full p-3 border-2 border-dashed border-slate-200 dark:border-slate-800 hover:border-purple-500 rounded-2xl flex items-center justify-center gap-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-950 transition-colors"
+              >
+                <FileUp className="w-4 h-4 text-purple-500" />
+                {isParsingPdf ? 'Parsing document...' : 'Upload PDF slides or syllabus to generate quiz directly'}
+              </button>
+            ) : (
+              <div className="flex items-center justify-between p-3 bg-purple-50 dark:bg-purple-950/60 border border-purple-200 dark:border-purple-800 rounded-xl text-xs">
+                <div className="flex items-center gap-2 text-purple-900 dark:text-purple-200 font-medium truncate">
+                  <FileText className="w-4 h-4 shrink-0 text-purple-500" />
+                  <span className="truncate">{uploadedDocName}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUploadedDocName(null);
+                    setUploadedDocText(null);
+                  }}
+                  className="p-1 text-slate-400 hover:text-red-500"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
 
             <form onSubmit={handleGenerate} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-                  WHAT TOPIC WOULD YOU LIKE TO BE TESTED ON?
+                  {uploadedDocName ? 'QUIZ TOPIC / EMPHASIS:' : 'WHAT TOPIC DO YOU WANT TO BE TESTED ON?'}
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. World History Cold War, Organic Chemistry Alkenes, Linear Algebra..."
+                  placeholder="e.g. Graph Algorithms (BFS/DFS), Cell Mitosis, World War II..."
                   value={topic}
                   onChange={e => setTopic(e.target.value)}
                   className="w-full p-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm"
@@ -187,12 +282,12 @@ export const QuizGenerator: React.FC<QuizGeneratorProps> = ({ onStartQuiz }) => 
 
                 <button
                   type="submit"
-                  disabled={isGenerating || !topic.trim()}
+                  disabled={isGenerating || (!topic.trim() && !uploadedDocText)}
                   className="flex-1 py-2.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20"
                 >
                   {isGenerating ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin" /> Generating...
+                      <Loader2 className="w-4 h-4 animate-spin" /> Generating Quiz...
                     </>
                   ) : (
                     <>

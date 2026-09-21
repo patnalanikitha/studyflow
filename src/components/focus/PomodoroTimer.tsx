@@ -14,15 +14,33 @@ import {
   CheckCircle2,
   Plus,
   Trash2,
+  Settings,
+  Sliders,
+  Check,
 } from 'lucide-react';
 
 type TimerMode = 'pomodoro' | 'shortBreak' | 'longBreak';
 
-const MODE_TIMES: Record<TimerMode, number> = {
-  pomodoro: 25 * 60,
-  shortBreak: 5 * 60,
-  longBreak: 15 * 60,
+interface TimerSettings {
+  pomodoro: number; // in minutes
+  shortBreak: number;
+  longBreak: number;
+  autoStartBreaks: boolean;
+}
+
+const DEFAULT_SETTINGS: TimerSettings = {
+  pomodoro: 25,
+  shortBreak: 5,
+  longBreak: 15,
+  autoStartBreaks: false,
 };
+
+const TIMER_PRESETS = [
+  { name: 'Classic', pomodoro: 25, shortBreak: 5, longBreak: 15 },
+  { name: 'Deep Work', pomodoro: 50, shortBreak: 10, longBreak: 25 },
+  { name: 'Quick Sprint', pomodoro: 15, shortBreak: 3, longBreak: 10 },
+  { name: 'Ultradian', pomodoro: 90, shortBreak: 20, longBreak: 30 },
+];
 
 export const PomodoroTimer: React.FC = () => {
   const {
@@ -32,13 +50,27 @@ export const PomodoroTimer: React.FC = () => {
     recordFocusSession,
   } = useStudy();
 
+  // Load custom timer settings from localStorage
+  const [timerSettings, setTimerSettings] = useState<TimerSettings>(() => {
+    try {
+      const saved = localStorage.getItem('studyflow_timer_settings');
+      return saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
+    } catch {
+      return DEFAULT_SETTINGS;
+    }
+  });
+
   const [mode, setMode] = useState<TimerMode>('pomodoro');
-  const [timeLeft, setTimeLeft] = useState<number>(MODE_TIMES.pomodoro);
+  const [timeLeft, setTimeLeft] = useState<number>(() => timerSettings.pomodoro * 60);
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [soundscape, setSoundscape] = useState<SoundscapeType>('none');
   const [volume, setVolume] = useState<number>(0.2);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [showShop, setShowShop] = useState<boolean>(false);
+  const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
+
+  // Temporary state for the settings modal
+  const [tempSettings, setTempSettings] = useState<TimerSettings>(timerSettings);
 
   // Focus Task checklist
   const [tasks, setTasks] = useState<{ id: string; text: string; done: boolean }[]>([
@@ -46,6 +78,10 @@ export const PomodoroTimer: React.FC = () => {
     { id: '2', text: 'Draft Chapter 3 summary notes', done: true },
   ]);
   const [newTaskInput, setNewTaskInput] = useState<string>('');
+
+  const getModeDurationSeconds = (m: TimerMode, settings: TimerSettings = timerSettings) => {
+    return settings[m] * 60;
+  };
 
   // Handle timer countdown
   useEffect(() => {
@@ -58,20 +94,23 @@ export const PomodoroTimer: React.FC = () => {
     } else if (isRunning && timeLeft === 0) {
       setIsRunning(false);
       if (mode === 'pomodoro') {
-        recordFocusSession(25);
+        recordFocusSession(timerSettings.pomodoro);
         setMode('shortBreak');
-        setTimeLeft(MODE_TIMES.shortBreak);
+        setTimeLeft(timerSettings.shortBreak * 60);
+        if (timerSettings.autoStartBreaks) {
+          setIsRunning(true);
+        }
       } else {
         soundEngine.playRetroChime('coin');
         setMode('pomodoro');
-        setTimeLeft(MODE_TIMES.pomodoro);
+        setTimeLeft(timerSettings.pomodoro * 60);
       }
     }
 
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isRunning, timeLeft, mode, recordFocusSession]);
+  }, [isRunning, timeLeft, mode, timerSettings, recordFocusSession]);
 
   // Soundscape synchronization
   useEffect(() => {
@@ -92,7 +131,7 @@ export const PomodoroTimer: React.FC = () => {
   const handleModeChange = (newMode: TimerMode) => {
     setIsRunning(false);
     setMode(newMode);
-    setTimeLeft(MODE_TIMES[newMode]);
+    setTimeLeft(getModeDurationSeconds(newMode));
     soundEngine.playRetroChime('click');
   };
 
@@ -104,15 +143,26 @@ export const PomodoroTimer: React.FC = () => {
   const resetTimer = () => {
     soundEngine.playRetroChime('click');
     setIsRunning(false);
-    setTimeLeft(MODE_TIMES[mode]);
+    setTimeLeft(getModeDurationSeconds(mode));
+  };
+
+  // Save custom timer settings
+  const handleSaveSettings = () => {
+    setTimerSettings(tempSettings);
+    localStorage.setItem('studyflow_timer_settings', JSON.stringify(tempSettings));
+    if (!isRunning) {
+      setTimeLeft(tempSettings[mode] * 60);
+    }
+    setShowSettingsModal(false);
+    soundEngine.playRetroChime('coin');
   };
 
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
   const formattedTime = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 
-  const totalTime = MODE_TIMES[mode];
-  const progressPercent = Math.round(((totalTime - timeLeft) / totalTime) * 100);
+  const totalTime = getModeDurationSeconds(mode);
+  const progressPercent = Math.min(100, Math.max(0, Math.round(((totalTime - timeLeft) / totalTime) * 100)));
 
   // Generate retro pixel block bar: e.g. [■■■■□□□□]
   const totalBlocks = 12;
@@ -168,7 +218,7 @@ export const PomodoroTimer: React.FC = () => {
             </div>
           </div>
 
-          {/* Pixel Stats */}
+          {/* Pixel Stats & Controls */}
           <div className="flex items-center gap-3 bg-slate-950/80 px-4 py-2 rounded-xl border-2 border-slate-700 shadow-pixel-sm">
             <div className="flex items-center gap-1.5 text-yellow-400 font-pixel text-xs">
               <span>🪙</span>
@@ -180,9 +230,21 @@ export const PomodoroTimer: React.FC = () => {
               <span>⭐</span>
               <span>LVL {pixelPet.level}</span>
             </div>
+
+            <button
+              onClick={() => {
+                setTempSettings(timerSettings);
+                setShowSettingsModal(true);
+              }}
+              title="Customize Timer Intervals"
+              className="ml-2 p-1.5 bg-slate-800 hover:bg-slate-700 text-yellow-300 rounded-lg border border-slate-600 shadow-pixel-sm transition-transform active:translate-y-0.5"
+            >
+              <Sliders className="w-3.5 h-3.5" />
+            </button>
+
             <button
               onClick={() => setShowShop(prev => !prev)}
-              className="ml-2 px-2.5 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded text-xs font-pixel flex items-center gap-1 border border-purple-400 shadow-pixel-sm transition-transform active:translate-y-0.5"
+              className="px-2.5 py-1 bg-purple-600 hover:bg-purple-500 text-white rounded text-xs font-pixel flex items-center gap-1 border border-purple-400 shadow-pixel-sm transition-transform active:translate-y-0.5"
             >
               <ShoppingBag className="w-3.5 h-3.5" />
               <span>SHOP</span>
@@ -236,29 +298,44 @@ export const PomodoroTimer: React.FC = () => {
 
         {/* Right Side: Retro Timer & Controls */}
         <div className="md:col-span-7 flex flex-col justify-between p-6 bg-slate-900/90 dark:bg-[#1a1728] border-4 border-slate-900 rounded-2xl shadow-pixel space-y-6">
-          {/* Mode Switchers */}
-          <div className="grid grid-cols-3 gap-2">
-            {(
-              [
-                { id: 'pomodoro', label: 'FOCUS', time: '25m', icon: '🎯' },
-                { id: 'shortBreak', label: 'SHORT', time: '5m', icon: '☕' },
-                { id: 'longBreak', label: 'LONG', time: '15m', icon: '🛋️' },
-              ] as const
-            ).map(m => (
-              <button
-                key={m.id}
-                onClick={() => handleModeChange(m.id)}
-                className={`py-2 px-1 rounded-xl font-pixel text-xs border-2 transition-all flex flex-col items-center gap-1 ${
-                  mode === m.id
-                    ? 'bg-purple-600 text-white border-yellow-300 shadow-pixel-sm scale-102'
-                    : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-700'
-                }`}
-              >
-                <span className="text-base">{m.icon}</span>
-                <span>{m.label}</span>
-                <span className="text-[9px] opacity-75 font-mono">({m.time})</span>
-              </button>
-            ))}
+          {/* Mode Switchers with dynamic customized times */}
+          <div className="flex items-center gap-2">
+            <div className="grid grid-cols-3 gap-2 flex-1">
+              {(
+                [
+                  { id: 'pomodoro', label: 'FOCUS', time: `${timerSettings.pomodoro}m`, icon: '🎯' },
+                  { id: 'shortBreak', label: 'SHORT', time: `${timerSettings.shortBreak}m`, icon: '☕' },
+                  { id: 'longBreak', label: 'LONG', time: `${timerSettings.longBreak}m`, icon: '🛋️' },
+                ] as const
+              ).map(m => (
+                <button
+                  key={m.id}
+                  onClick={() => handleModeChange(m.id)}
+                  className={`py-2 px-1 rounded-xl font-pixel text-xs border-2 transition-all flex flex-col items-center gap-1 ${
+                    mode === m.id
+                      ? 'bg-purple-600 text-white border-yellow-300 shadow-pixel-sm scale-102'
+                      : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-700'
+                  }`}
+                >
+                  <span className="text-base">{m.icon}</span>
+                  <span>{m.label}</span>
+                  <span className="text-[9px] opacity-75 font-mono">({m.time})</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Customize button */}
+            <button
+              onClick={() => {
+                setTempSettings(timerSettings);
+                setShowSettingsModal(true);
+              }}
+              title="Customize Minutes"
+              className="p-2.5 bg-slate-800 hover:bg-slate-700 text-purple-300 border-2 border-slate-700 rounded-xl shadow-pixel-sm transition-all flex flex-col items-center justify-center text-[9px] font-pixel shrink-0"
+            >
+              <Settings className="w-4 h-4 text-yellow-400" />
+              <span className="mt-1">EDIT</span>
+            </button>
           </div>
 
           {/* Retro Pixel Clock Display */}
@@ -431,6 +508,122 @@ export const PomodoroTimer: React.FC = () => {
           ))}
         </div>
       </div>
+
+      {/* CUSTOM TIMER SETTINGS MODAL */}
+      {showSettingsModal && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border-4 border-yellow-400 rounded-2xl max-w-md w-full p-6 shadow-pixel space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="font-pixel text-xs text-yellow-300 flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-yellow-400" /> CUSTOMIZE TIMER INTERVALS
+              </h3>
+              <button
+                onClick={() => setShowSettingsModal(false)}
+                className="text-xs font-pixel text-slate-400 hover:text-white"
+              >
+                [X]
+              </button>
+            </div>
+
+            {/* Presets */}
+            <div>
+              <span className="text-[10px] font-pixel text-purple-300 block mb-2">QUICK PRESETS:</span>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                {TIMER_PRESETS.map(p => (
+                  <button
+                    key={p.name}
+                    type="button"
+                    onClick={() => {
+                      setTempSettings(prev => ({
+                        ...prev,
+                        pomodoro: p.pomodoro,
+                        shortBreak: p.shortBreak,
+                        longBreak: p.longBreak,
+                      }));
+                    }}
+                    className="p-2 bg-slate-800 hover:bg-purple-900/60 border border-slate-700 rounded-lg text-center"
+                  >
+                    <div className="text-[10px] font-pixel text-white truncate">{p.name}</div>
+                    <div className="text-[9px] font-mono text-yellow-400 mt-0.5">{p.pomodoro}/{p.shortBreak}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Sliders */}
+            <div className="space-y-4 pt-2">
+              {/* Focus duration */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-xs font-pixel text-emerald-400">
+                  <span>FOCUS DURATION:</span>
+                  <span className="font-mono text-sm">{tempSettings.pomodoro} MINS</span>
+                </div>
+                <input
+                  type="range"
+                  min="5"
+                  max="120"
+                  step="5"
+                  value={tempSettings.pomodoro}
+                  onChange={e => setTempSettings(prev => ({ ...prev, pomodoro: parseInt(e.target.value) }))}
+                  className="w-full accent-emerald-400 h-2 bg-slate-950 rounded-lg cursor-pointer"
+                />
+              </div>
+
+              {/* Short break duration */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-xs font-pixel text-amber-400">
+                  <span>SHORT BREAK:</span>
+                  <span className="font-mono text-sm">{tempSettings.shortBreak} MINS</span>
+                </div>
+                <input
+                  type="range"
+                  min="1"
+                  max="30"
+                  step="1"
+                  value={tempSettings.shortBreak}
+                  onChange={e => setTempSettings(prev => ({ ...prev, shortBreak: parseInt(e.target.value) }))}
+                  className="w-full accent-amber-400 h-2 bg-slate-950 rounded-lg cursor-pointer"
+                />
+              </div>
+
+              {/* Long break duration */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-xs font-pixel text-blue-400">
+                  <span>LONG BREAK:</span>
+                  <span className="font-mono text-sm">{tempSettings.longBreak} MINS</span>
+                </div>
+                <input
+                  type="range"
+                  min="5"
+                  max="60"
+                  step="5"
+                  value={tempSettings.longBreak}
+                  onChange={e => setTempSettings(prev => ({ ...prev, longBreak: parseInt(e.target.value) }))}
+                  className="w-full accent-blue-400 h-2 bg-slate-950 rounded-lg cursor-pointer"
+                />
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex gap-2 pt-3 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setShowSettingsModal(false)}
+                className="flex-1 py-2 text-xs font-pixel text-slate-400 hover:text-white"
+              >
+                CANCEL
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveSettings}
+                className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-pixel text-xs rounded-xl border border-emerald-300 shadow-pixel-sm flex items-center justify-center gap-1.5"
+              >
+                <Check className="w-4 h-4" /> APPLY TIMER
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Pixel Pet Shop Modal */}
       {showShop && (

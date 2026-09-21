@@ -1,7 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useStudy } from '../../context/StudyContext';
 import { generateFlashcardsFromNotes } from '../../lib/gemini';
-import { Sparkles, Loader2, Plus, Check } from 'lucide-react';
+import { extractTextFromDocument } from '../../lib/pdfParser';
+import {
+  Sparkles,
+  Loader2,
+  Plus,
+  Check,
+  FileText,
+  Upload,
+  FileUp,
+  X,
+} from 'lucide-react';
 
 interface AiCardGeneratorProps {
   deckId?: string;
@@ -12,13 +22,47 @@ export const AiCardGenerator: React.FC<AiCardGeneratorProps> = ({ deckId, onSucc
   const { decks, addCardsToDeck, addDeck } = useStudy();
 
   const [notes, setNotes] = useState<string>('');
-  const [cardCount, setCardCount] = useState<number>(4);
+  const [cardCount, setCardCount] = useState<number>(5);
   const [selectedDeckId, setSelectedDeckId] = useState<string>(deckId || (decks[0]?.id ?? ''));
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [isExtractingPdf, setIsExtractingPdf] = useState<boolean>(false);
+  const [uploadedDocName, setUploadedDocName] = useState<string | null>(null);
+  const [uploadedDocPages, setUploadedDocPages] = useState<number | null>(null);
+
   const [generatedCards, setGeneratedCards] = useState<
     { front: string; back: string; tags: string[] }[]
   >([]);
   const [isSaved, setIsSaved] = useState<boolean>(false);
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleFileUpload = async (file: File) => {
+    setIsExtractingPdf(true);
+    try {
+      const result = await extractTextFromDocument(file);
+      setNotes(result.text);
+      setUploadedDocName(result.name);
+      setUploadedDocPages(result.numPages);
+    } catch (err) {
+      console.error('Failed to parse document:', err);
+      alert('Could not parse PDF. Please ensure the file contains readable text.');
+    } finally {
+      setIsExtractingPdf(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFileUpload(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleClearDoc = () => {
+    setUploadedDocName(null);
+    setUploadedDocPages(null);
+    setNotes('');
+  };
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,10 +86,10 @@ export const AiCardGenerator: React.FC<AiCardGeneratorProps> = ({ deckId, onSucc
 
     if (!targetId && decks.length === 0) {
       targetId = addDeck({
-        title: 'New AI Study Deck',
-        description: 'Auto-generated flashcards from study notes',
+        title: uploadedDocName ? `Deck: ${uploadedDocName.replace(/\.[^/.]+$/, '')}` : 'New Study Deck',
+        description: 'Flashcards synthesized from uploaded notes/PDF',
         subject: 'General',
-        icon: '📚',
+        icon: '📄',
         color: 'from-purple-500 to-indigo-600',
       });
     }
@@ -61,30 +105,106 @@ export const AiCardGenerator: React.FC<AiCardGeneratorProps> = ({ deckId, onSucc
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-xl space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="p-2.5 bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 rounded-xl">
-          <Sparkles className="w-5 h-5" />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 rounded-xl">
+            <Sparkles className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+              PDF & Notes Flashcard Synthesizer
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Upload textbook PDFs, lecture handouts, or paste notes to generate active recall cards.
+            </p>
+          </div>
         </div>
-        <div>
-          <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-            AI Note-to-Flashcards Synthesizer
-          </h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Paste textbook passages, bullet points, or lecture transcripts to generate SM-2 ready cards.
+
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf,.txt,.md"
+          className="hidden"
+          onChange={e => {
+            if (e.target.files && e.target.files[0]) {
+              handleFileUpload(e.target.files[0]);
+            }
+          }}
+        />
+
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isExtractingPdf}
+          className="px-4 py-2.5 bg-purple-50 dark:bg-purple-950/80 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 rounded-xl border border-purple-200 dark:border-purple-800 text-xs font-semibold flex items-center gap-2 transition-all shadow-sm"
+        >
+          {isExtractingPdf ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin text-purple-600" />
+              Parsing PDF...
+            </>
+          ) : (
+            <>
+              <FileUp className="w-4 h-4" />
+              Upload PDF / Document
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* PDF Drag & Drop Banner if no doc uploaded */}
+      {!uploadedDocName && !notes && (
+        <div
+          onDragOver={e => e.preventDefault()}
+          onDrop={handleDrop}
+          onClick={() => fileInputRef.current?.click()}
+          className="p-6 border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-purple-500 dark:hover:border-purple-500 rounded-2xl bg-slate-50/50 dark:bg-slate-950/50 text-center cursor-pointer transition-all group"
+        >
+          <div className="w-12 h-12 rounded-2xl bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
+            <Upload className="w-6 h-6" />
+          </div>
+          <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+            Click to upload or drag and drop a PDF file
+          </p>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            Supports PDF lecture slides, syllabus outlines, and markdown notes
           </p>
         </div>
-      </div>
+      )}
+
+      {/* Uploaded Doc Indicator */}
+      {uploadedDocName && (
+        <div className="flex items-center justify-between p-3.5 bg-purple-50 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800/80 rounded-2xl">
+          <div className="flex items-center gap-2.5 text-xs text-purple-900 dark:text-purple-200 font-medium">
+            <FileText className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+            <span className="font-bold truncate max-w-xs">{uploadedDocName}</span>
+            {uploadedDocPages && (
+              <span className="text-[10px] bg-purple-200/60 dark:bg-purple-900/60 px-2 py-0.5 rounded-full">
+                {uploadedDocPages} Page{uploadedDocPages !== 1 ? 's' : ''} Extracted
+              </span>
+            )}
+          </div>
+          <button
+            onClick={handleClearDoc}
+            title="Remove file"
+            className="p-1 text-slate-400 hover:text-red-500 rounded-lg"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       <form onSubmit={handleGenerate} className="space-y-4">
         <div>
           <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-            PASTE STUDY NOTES OR TEXTBOOK EXCERPT:
+            EXTRACTED TEXT CONTENT:
           </label>
           <textarea
             rows={5}
             value={notes}
             onChange={e => setNotes(e.target.value)}
-            placeholder="e.g. Mitochondria produce ATP via cellular respiration and oxidative phosphorylation across the inner cristae membrane..."
+            placeholder="Paste your lecture notes, textbook excerpt, or upload a PDF above..."
             className="w-full p-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
           />
         </div>
@@ -92,7 +212,7 @@ export const AiCardGenerator: React.FC<AiCardGeneratorProps> = ({ deckId, onSucc
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-              SAVE INTO DECK:
+              TARGET STUDY DECK:
             </label>
             <select
               value={selectedDeckId}
@@ -109,10 +229,10 @@ export const AiCardGenerator: React.FC<AiCardGeneratorProps> = ({ deckId, onSucc
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
-              CARDS TO EXTRACT:
+              CARDS TO SYNTHESIZE:
             </label>
             <div className="flex gap-2">
-              {[3, 5, 8].map(num => (
+              {[3, 5, 8, 12].map(num => (
                 <button
                   key={num}
                   type="button"
@@ -123,7 +243,7 @@ export const AiCardGenerator: React.FC<AiCardGeneratorProps> = ({ deckId, onSucc
                       : 'bg-slate-50 dark:bg-slate-950 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-100'
                   }`}
                 >
-                  {num} Cards
+                  {num}
                 </button>
               ))}
             </div>
@@ -143,7 +263,7 @@ export const AiCardGenerator: React.FC<AiCardGeneratorProps> = ({ deckId, onSucc
           ) : (
             <>
               <Sparkles className="w-4 h-4" />
-              Generate Flashcards with Gemini
+              Synthesize Flashcards
             </>
           )}
         </button>
