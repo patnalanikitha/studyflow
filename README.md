@@ -6,9 +6,12 @@
 [![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-3.4-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 [![Google Gemini API](https://img.shields.io/badge/Google%20Gemini-1.5%20Flash-4285F4?logo=google&logoColor=white)](https://ai.google.dev/)
 [![Web Audio API](https://img.shields.io/badge/Audio-Web%20Audio%20API-orange)](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel-success?logo=vercel)](https://studyflow-zeta-nine.vercel.app)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 > Welcome to StudyFlow OS, a cozy digital sanctuary designed for scholars, thinkers, and lifelong learners. Where retro pixel art warmth meets algorithmic rigor, active recall meets procedural soundscapes, and study sessions feel like quiet rainy afternoons with an encouraging companion.
+>
+> **Live Demo:** [https://studyflow-zeta-nine.vercel.app](https://studyflow-zeta-nine.vercel.app)
 
 ---
 
