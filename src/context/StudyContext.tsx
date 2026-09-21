@@ -7,6 +7,10 @@ import {
   DailyStudyActivity,
   PixelPetState,
   CardReviewRating,
+  HatId,
+  RoomThemeId,
+  DeskTrinketId,
+  Quest,
 } from '../types';
 import {
   STORAGE_KEYS,
@@ -22,6 +26,53 @@ import { calculateSM2 } from '../lib/sm2';
 import { soundEngine } from '../lib/soundEngine';
 import { getStoredApiKey, saveStoredApiKey } from '../lib/gemini';
 import confetti from 'canvas-confetti';
+
+const INITIAL_QUESTS: Quest[] = [
+  {
+    id: 'q-cards',
+    title: 'Active Memory Drill',
+    description: 'Review at least 4 flashcards with SM-2 spaced repetition.',
+    rewardCoins: 35,
+    rewardXp: 60,
+    target: 4,
+    current: 0,
+    claimed: false,
+    category: 'cards',
+  },
+  {
+    id: 'q-pomodoro',
+    title: 'Deep Focus Flow',
+    description: 'Complete at least 1 focus session in the Pixel Studio.',
+    rewardCoins: 40,
+    rewardXp: 80,
+    target: 1,
+    current: 0,
+    claimed: false,
+    category: 'focus',
+  },
+  {
+    id: 'q-quiz',
+    title: 'Knowledge Challenge',
+    description: 'Complete 1 practice quiz or mock exam.',
+    rewardCoins: 45,
+    rewardXp: 70,
+    target: 1,
+    current: 0,
+    claimed: false,
+    category: 'quiz',
+  },
+  {
+    id: 'q-task',
+    title: 'Goal Crusher',
+    description: 'Complete at least 2 study objectives on your checklist.',
+    rewardCoins: 30,
+    rewardXp: 50,
+    target: 2,
+    current: 0,
+    claimed: false,
+    category: 'task',
+  },
+];
 
 interface StudyContextType {
   // Decks & Flashcards
@@ -45,12 +96,20 @@ interface StudyContextType {
   // Study Activity & Stats
   activity: DailyStudyActivity[];
   recordFocusSession: (minutes: number) => void;
+  recordTaskCompleted: () => void;
   todayStats: { minutes: number; cardsReviewed: number; pomodoros: number };
 
   // Whimsical Pixel Pet & Gamification
   pixelPet: PixelPetState;
   updatePixelPet: (updates: Partial<PixelPetState>) => void;
+  awardXpAndCoins: (xp: number, coins: number) => void;
   spendCoins: (cost: number) => boolean;
+  unlockShopItem: (category: 'hat' | 'theme' | 'trinket', id: string, cost: number) => boolean;
+  equipShopItem: (category: 'hat' | 'theme' | 'trinket', id: string) => void;
+
+  // Quests
+  quests: Quest[];
+  claimQuest: (questId: string) => void;
 
   // App Theme & API Key
   isDarkMode: boolean;
@@ -83,9 +142,13 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     loadFromStorage<PixelPetState>(STORAGE_KEYS.PIXEL_PET, INITIAL_PIXEL_PET)
   );
 
+  const [quests, setQuests] = useState<Quest[]>(() =>
+    loadFromStorage<Quest[]>('studyflow_daily_quests', INITIAL_QUESTS)
+  );
+
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.THEME);
-    return saved !== null ? saved === 'true' : true; // Default to dark for slick aesthetic
+    return saved !== null ? saved === 'true' : true;
   });
 
   const [apiKey, setApiKey] = useState<string>(() => getStoredApiKey());
@@ -112,6 +175,10 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [pixelPet]);
 
   useEffect(() => {
+    saveToStorage('studyflow_daily_quests', quests);
+  }, [quests]);
+
+  useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.THEME, String(isDarkMode));
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
@@ -127,7 +194,7 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setApiKey(key);
   };
 
-  // Helper to touch today's activity
+  // Touch today's study metrics
   const touchTodayActivity = (updater: (today: DailyStudyActivity) => DailyStudyActivity) => {
     const todayStr = new Date().toISOString().split('T')[0];
     setActivity(prev => {
@@ -149,7 +216,71 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
-  // Today's aggregate stats
+  // Leveling & Coin progression formula
+  const awardXpAndCoins = (xp: number, coins: number) => {
+    setPixelPet(prev => {
+      let currentXp = (prev.xp ?? 0) + xp;
+      let currentLevel = prev.level ?? 1;
+      let currentThreshold = prev.xpToNextLevel ?? 200;
+      let didLevelUp = false;
+
+      while (currentXp >= currentThreshold) {
+        currentXp -= currentThreshold;
+        currentLevel += 1;
+        currentThreshold = Math.round(currentThreshold * 1.35);
+        didLevelUp = true;
+      }
+
+      if (didLevelUp) {
+        soundEngine.playRetroChime('levelUp');
+        confetti({
+          particleCount: 110,
+          spread: 85,
+          origin: { y: 0.5 },
+          colors: ['#fcd34d', '#ff80bf', '#38bdf8', '#4ade80', '#c084fc'],
+        });
+      }
+
+      return {
+        ...prev,
+        xp: currentXp,
+        level: currentLevel,
+        xpToNextLevel: currentThreshold,
+        coins: (prev.coins ?? 0) + coins + (didLevelUp ? 50 : 0),
+        totalCoinsEarned: (prev.totalCoinsEarned ?? 0) + coins + (didLevelUp ? 50 : 0),
+      };
+    });
+  };
+
+  // Track quest progress
+  const advanceQuestProgress = (category: Quest['category'], amount: number = 1) => {
+    setQuests(prev =>
+      prev.map(q => {
+        if (q.category === category && !q.claimed) {
+          return {
+            ...q,
+            current: Math.min(q.target, q.current + amount),
+          };
+        }
+        return q;
+      })
+    );
+  };
+
+  const claimQuest = (questId: string) => {
+    const quest = quests.find(q => q.id === questId);
+    if (!quest || quest.claimed || quest.current < quest.target) return;
+
+    setQuests(prev =>
+      prev.map(q => (q.id === questId ? { ...q, claimed: true } : q))
+    );
+
+    awardXpAndCoins(quest.rewardXp, quest.rewardCoins);
+    soundEngine.playRetroChime('coin');
+    confetti({ particleCount: 50, spread: 50 });
+  };
+
+  // Today stats
   const todayStr = new Date().toISOString().split('T')[0];
   const todayActivity = activity.find(a => a.date === todayStr);
   const todayStats = {
@@ -158,7 +289,7 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     pomodoros: todayActivity?.pomodorosCompleted || 0,
   };
 
-  // Deck operations
+  // Decks
   const addDeck = (deckData: Omit<Deck, 'id' | 'createdAt' | 'cards'>): string => {
     const newId = `deck-${Date.now()}`;
     const newDeck: Deck = {
@@ -168,6 +299,7 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       cards: [],
     };
     setDecks(prev => [newDeck, ...prev]);
+    awardXpAndCoins(25, 15);
     soundEngine.playRetroChime('coin');
     return newId;
   };
@@ -200,10 +332,11 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         };
       })
     );
+    awardXpAndCoins(newCardsData.length * 10, newCardsData.length * 5);
     soundEngine.playRetroChime('coin');
   };
 
-  // SM-2 Review Card implementation
+  // Review card with SM-2
   const reviewCard = (deckId: string, cardId: string, rating: CardReviewRating) => {
     setDecks(prev =>
       prev.map(deck => {
@@ -223,19 +356,21 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       })
     );
 
-    // Activity tracking & Gamification
     touchTodayActivity(today => ({
       ...today,
       cardsReviewed: today.cardsReviewed + 1,
     }));
 
-    // Reward coins for reviewing (rating 3+ gives 10 coins, rating < 3 gives 4 coins)
-    const earnedCoins = rating >= 3 ? 10 : 4;
-    awardCoins(earnedCoins);
+    advanceQuestProgress('cards', 1);
+
+    // XP & Coin distribution: Higher recall rating yields higher XP!
+    const earnedXp = rating >= 4 ? 20 : rating === 3 ? 12 : 6;
+    const earnedCoins = rating >= 4 ? 15 : rating === 3 ? 10 : 4;
+    awardXpAndCoins(earnedXp, earnedCoins);
     soundEngine.playRetroChime('cardFlip');
   };
 
-  // Quiz operations
+  // Quizzes
   const addQuiz = (quizData: Omit<Quiz, 'id' | 'createdAt' | 'timesTaken'>) => {
     const newQuiz: Quiz = {
       ...quizData,
@@ -244,6 +379,7 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       createdAt: new Date().toISOString(),
     };
     setQuizzes(prev => [newQuiz, ...prev]);
+    awardXpAndCoins(35, 20);
     soundEngine.playRetroChime('coin');
   };
 
@@ -264,7 +400,10 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       quizzesTaken: today.quizzesTaken + 1,
     }));
 
-    awardCoins(25);
+    advanceQuestProgress('quiz', 1);
+
+    const bonus = score >= 80 ? 40 : 15;
+    awardXpAndCoins(60 + bonus, 30 + (score >= 80 ? 25 : 10));
     if (score >= 80) {
       confetti({ particleCount: 60, spread: 60, origin: { y: 0.7 } });
       soundEngine.playRetroChime('levelUp');
@@ -278,6 +417,7 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       id: `plan-${Date.now()}`,
     };
     setExamPlans(prev => [...prev, newPlan]);
+    awardXpAndCoins(20, 10);
   };
 
   const deleteExamPlan = (planId: string) => {
@@ -290,14 +430,24 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (p.id !== planId) return p;
         return {
           ...p,
-          topics: p.topics.map(t => (t.id === topicId ? { ...t, completed: !t.completed } : t)),
+          topics: p.topics.map(t => {
+            if (t.id === topicId) {
+              const nextDone = !t.completed;
+              if (nextDone) {
+                awardXpAndCoins(25, 15);
+                advanceQuestProgress('task', 1);
+              }
+              return { ...t, completed: nextDone };
+            }
+            return t;
+          }),
         };
       })
     );
     soundEngine.playRetroChime('click');
   };
 
-  // Focus Session completion
+  // Focus sessions
   const recordFocusSession = (minutes: number) => {
     touchTodayActivity(today => ({
       ...today,
@@ -305,8 +455,13 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       pomodorosCompleted: today.pomodorosCompleted + 1,
     }));
 
-    // Award 30 coins for a full pomodoro
-    awardCoins(30);
+    advanceQuestProgress('focus', 1);
+
+    // XP & Coins scale with time spent studying!
+    const earnedXp = Math.round(minutes * 3);
+    const earnedCoins = Math.round(minutes * 1.5);
+    awardXpAndCoins(earnedXp, earnedCoins);
+
     soundEngine.playRetroChime('pomodoroDone');
     confetti({
       particleCount: 80,
@@ -316,20 +471,9 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
-  // Pixel Pet & Coins
-  const awardCoins = (amount: number) => {
-    setPixelPet(prev => {
-      const nextCoins = prev.coins + amount;
-      const nextLevel = Math.floor(nextCoins / 100) + 1;
-      if (nextLevel > prev.level) {
-        soundEngine.playRetroChime('levelUp');
-      }
-      return {
-        ...prev,
-        coins: nextCoins,
-        level: Math.max(prev.level, nextLevel),
-      };
-    });
+  const recordTaskCompleted = () => {
+    advanceQuestProgress('task', 1);
+    awardXpAndCoins(25, 15);
   };
 
   const spendCoins = (cost: number): boolean => {
@@ -344,6 +488,53 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const updatePixelPet = (updates: Partial<PixelPetState>) => {
     setPixelPet(prev => ({ ...prev, ...updates }));
+  };
+
+  // Shop item unlock & equip
+  const unlockShopItem = (category: 'hat' | 'theme' | 'trinket', id: string, cost: number): boolean => {
+    if (pixelPet.coins < cost) return false;
+
+    setPixelPet(prev => {
+      const remainingCoins = prev.coins - cost;
+      if (category === 'hat') {
+        const unlocked = Array.from(new Set([...(prev.unlockedHats || []), id as HatId]));
+        return {
+          ...prev,
+          coins: remainingCoins,
+          unlockedHats: unlocked,
+          equippedHat: id as HatId,
+        };
+      } else if (category === 'theme') {
+        const unlocked = Array.from(new Set([...(prev.unlockedThemes || []), id as RoomThemeId]));
+        return {
+          ...prev,
+          coins: remainingCoins,
+          unlockedThemes: unlocked,
+          currentRoomTheme: id as RoomThemeId,
+        };
+      } else {
+        const unlocked = Array.from(new Set([...(prev.unlockedTrinkets || []), id as DeskTrinketId]));
+        return {
+          ...prev,
+          coins: remainingCoins,
+          unlockedTrinkets: unlocked,
+          deskTrinket: id as DeskTrinketId,
+        };
+      }
+    });
+
+    soundEngine.playRetroChime('coin');
+    confetti({ particleCount: 60, spread: 60 });
+    return true;
+  };
+
+  const equipShopItem = (category: 'hat' | 'theme' | 'trinket', id: string) => {
+    setPixelPet(prev => {
+      if (category === 'hat') return { ...prev, equippedHat: id as HatId };
+      if (category === 'theme') return { ...prev, currentRoomTheme: id as RoomThemeId };
+      return { ...prev, deskTrinket: id as DeskTrinketId };
+    });
+    soundEngine.playRetroChime('click');
   };
 
   return (
@@ -363,10 +554,16 @@ export const StudyProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         toggleExamTopic,
         activity,
         recordFocusSession,
+        recordTaskCompleted,
         todayStats,
         pixelPet,
         updatePixelPet,
+        awardXpAndCoins,
         spendCoins,
+        unlockShopItem,
+        equipShopItem,
+        quests,
+        claimQuest,
         isDarkMode,
         toggleDarkMode,
         apiKey,

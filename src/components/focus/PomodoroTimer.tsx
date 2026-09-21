@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useStudy } from '../../context/StudyContext';
 import { PixelPetCanvas } from './PixelPetCanvas';
+import { PixelShopModal } from './PixelShopModal';
 import { soundEngine } from '../../lib/soundEngine';
 import { SoundscapeType } from '../../types';
 import {
@@ -9,7 +10,6 @@ import {
   RotateCcw,
   Volume2,
   VolumeX,
-  Sparkles,
   ShoppingBag,
   CheckCircle2,
   Plus,
@@ -46,8 +46,8 @@ export const PomodoroTimer: React.FC = () => {
   const {
     pixelPet,
     updatePixelPet,
-    spendCoins,
     recordFocusSession,
+    recordTaskCompleted,
   } = useStudy();
 
   // Load custom timer settings from localStorage
@@ -183,7 +183,10 @@ export const PomodoroTimer: React.FC = () => {
       prev.map(t => {
         if (t.id === id) {
           const nextDone = !t.done;
-          if (nextDone) soundEngine.playRetroChime('coin');
+          if (nextDone) {
+            recordTaskCompleted();
+            soundEngine.playRetroChime('coin');
+          }
           return { ...t, done: nextDone };
         }
         return t;
@@ -625,62 +628,8 @@ export const PomodoroTimer: React.FC = () => {
         </div>
       )}
 
-      {/* Pixel Pet Shop Modal */}
-      {showShop && (
-        <div className="p-5 bg-purple-950/90 border-4 border-yellow-300 rounded-2xl shadow-pixel space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-pixel text-xs text-yellow-300 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-yellow-300" /> PIXEL PET ACCESSORY SHOP
-            </h3>
-            <button
-              onClick={() => setShowShop(false)}
-              className="text-xs font-pixel text-slate-300 hover:text-white"
-            >
-              [CLOSE]
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-            {[
-              { id: 'headphones', name: 'Pink Lo-Fi Cans', icon: '🎧', cost: 0 },
-              { id: 'graduate-cap', name: 'Graduation Cap', icon: '🎓', cost: 50 },
-              { id: 'sprout', name: 'Lucky Sprout', icon: '🌱', cost: 75 },
-              { id: 'wizard-hat', name: 'Arcane Wizard Hat', icon: '🧙‍♂️', cost: 120 },
-            ].map(item => {
-              const isEquipped = pixelPet.equippedHat === item.id;
-              return (
-                <div
-                  key={item.id}
-                  className="p-3 bg-slate-900 border-2 border-slate-700 rounded-xl flex flex-col items-center gap-2 text-center"
-                >
-                  <span className="text-3xl">{item.icon}</span>
-                  <span className="font-pixel text-[10px] text-purple-200">{item.name}</span>
-                  <button
-                    onClick={() => {
-                      if (isEquipped) {
-                        updatePixelPet({ equippedHat: 'none' });
-                      } else {
-                        if (item.cost === 0 || spendCoins(item.cost)) {
-                          updatePixelPet({ equippedHat: item.id as any });
-                        } else {
-                          alert('Not enough study coins! Complete more Pomodoros or review flashcards!');
-                        }
-                      }
-                    }}
-                    className={`px-3 py-1 text-[10px] font-pixel rounded border shadow-pixel-sm ${
-                      isEquipped
-                        ? 'bg-emerald-500 text-slate-950 border-emerald-300'
-                        : 'bg-yellow-400 hover:bg-yellow-300 text-slate-950 border-yellow-300'
-                    }`}
-                  >
-                    {isEquipped ? 'EQUIPPED' : item.cost === 0 ? 'FREE' : `🪙 ${item.cost}`}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {/* Pixel Pet Shop & Quests Modal */}
+      <PixelShopModal isOpen={showShop} onClose={() => setShowShop(false)} />
     </div>
   );
 };

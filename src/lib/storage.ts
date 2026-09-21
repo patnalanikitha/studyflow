@@ -207,9 +207,16 @@ export const INITIAL_PIXEL_PET: PixelPetState = {
   species: 'cat',
   name: 'Mochi',
   level: 4,
+  xp: 140,
+  xpToNextLevel: 250,
   coins: 160,
+  totalCoinsEarned: 520,
   currentRoomTheme: 'cozy-loft',
   equippedHat: 'headphones',
+  deskTrinket: 'matcha-latte',
+  unlockedHats: ['none', 'headphones'],
+  unlockedThemes: ['cozy-loft'],
+  unlockedTrinkets: ['none', 'matcha-latte'],
 };
 
 // Storage helper methods

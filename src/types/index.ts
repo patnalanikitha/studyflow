@@ -72,13 +72,53 @@ export interface DailyStudyActivity {
 
 export type SoundscapeType = 'none' | 'rain' | 'lofi-noise' | 'cafe' | 'binaural-alpha' | 'night-crickets';
 
+export type HatId =
+  | 'none'
+  | 'headphones'
+  | 'graduate-cap'
+  | 'sprout'
+  | 'wizard-hat'
+  | 'golden-crown'
+  | 'strawberry-beret'
+  | 'viking-helm';
+
+export type RoomThemeId =
+  | 'cozy-loft'
+  | 'cyberpunk-study'
+  | 'forest-cabin'
+  | 'matcha-cafe'
+  | 'starlight-observatory';
+
+export type DeskTrinketId = 'none' | 'matcha-latte' | 'bonsai' | 'lava-lamp' | 'golden-trophy';
+
+export type PetSpecies = 'cat' | 'bear' | 'bunny' | 'frog' | 'duck';
+
 export interface PixelPetState {
-  species: 'cat' | 'bear' | 'bunny' | 'frog';
+  species: PetSpecies;
   name: string;
   level: number;
+  xp: number;
+  xpToNextLevel: number;
   coins: number;
-  currentRoomTheme: 'cozy-loft' | 'cyberpunk-study' | 'forest-cabin' | 'matcha-cafe';
-  equippedHat: 'none' | 'graduate-cap' | 'headphones' | 'wizard-hat' | 'sprout';
+  totalCoinsEarned: number;
+  currentRoomTheme: RoomThemeId;
+  equippedHat: HatId;
+  deskTrinket: DeskTrinketId;
+  unlockedHats: HatId[];
+  unlockedThemes: RoomThemeId[];
+  unlockedTrinkets: DeskTrinketId[];
+}
+
+export interface Quest {
+  id: string;
+  title: string;
+  description: string;
+  rewardCoins: number;
+  rewardXp: number;
+  target: number;
+  current: number;
+  claimed: boolean;
+  category: 'cards' | 'focus' | 'quiz' | 'task';
 }
 
 export interface TutorMessage {
