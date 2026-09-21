@@ -1,4 +1,4 @@
-# 🎓 StudyFlow OS — AI Academic Companion & Pixel Focus Studio
+# StudyFlow OS — Academic Companion & Pixel Focus Studio
 
 [![React](https://img.shields.io/badge/React-18.3-61DAFB?logo=react&logoColor=black)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -8,49 +8,48 @@
 [![Web Audio API](https://img.shields.io/badge/Audio-Web%20Audio%20API-orange)](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> **StudyFlow OS** is an all-in-one student productivity and learning operating system engineered with modern web technologies. It combines algorithmic memory retention (**SuperMemo SM-2 Spaced Repetition**), generative AI assistance (**Google Gemini 1.5**), and a **whimsical, cozy retro-pixel Focus Studio** with procedural sound synthesis.
+> Welcome to StudyFlow OS, a cozy digital sanctuary designed for scholars, thinkers, and lifelong learners. Where retro pixel art warmth meets algorithmic rigor, active recall meets procedural soundscapes, and study sessions feel like quiet rainy afternoons with an encouraging companion.
 
 ---
 
-## 🌟 Core Feature Highlights
+## Whimsical Feature Highlights
 
-### 1. 👾 Whimsical & Cute Pixel Focus Studio
-- **Animated Pixel Pet Companion**: Choose between Mochi the Cat, Barnaby the Bear, or Pip the Bunny. Your companion actively types on a glowing laptop when you study, takes cozy naps when on break, and celebrates your study streaks!
-- **Pixel Customization Shop**: Earn study coins (`🪙`) by completing Pomodoros or reviewing flashcards to equip graduation caps, pink lo-fi headphones, arcane wizard hats, and lucky sprouts!
-- **Procedural Ambient Soundscapes**: 100% self-contained ambient sound synthesis using the native browser **Web Audio API** (no external audio files, no broken CDNs):
-  - 🌧️ **Pink Rain & Drizzle** (Biquad lowpass/bandpass noise filters)
-  - ☕ **Lo-Fi Brown Noise** (Deep cozy focus frequency)
-  - 🥐 **Cafe Ambiance** (Resonant dual-filtered murmur)
-  - 🧠 **10Hz Alpha Waves** (Binaural stereo panned focus pulses)
-  - 🌙 **Night Crickets** (LFO modulated sine pulse generator)
-  - 🕹️ **8-bit Chiptune SFX** (Coin drops, card flips, and victory arpeggios)
+### 1. The Cozy Pixel Focus Studio
+- **Animated Companions**: Choose between Mochi the Cat, Barnaby the Bear, or Pip the Bunny. Your desk companion wiggles their ears, types alongside you on a glowing screen during deep focus, sips warm tea with gentle drifting snoozes on break, and celebrates every milestone.
+- **The Pixel Wardrobe & Trinket Shop**: Earn study coins by reviewing flashcards and completing Pomodoros. Unlock whimsical accessories including tiny graduation caps, pink lo-fi headphones, arcane wizard hats, and lucky clover sprouts.
+- **Procedural Soundscapes Synthesized from Pure Math**: 100% self-contained ambient sound engine crafted entirely through the browser Web Audio API — zero external audio files, zero streaming dependencies:
+  - *Gentle Window Drizzle*: Pink noise biquad-filtered into soft drops
+  - *Warm Brown Noise*: Deep soothing low-frequency rumble
+  - *Old Library Murmur*: Resonant dual-band murmur of quiet spaces
+  - *Ten-Hertz Alpha Waves*: Stereo-panned binaural focus pulses
+  - *Starlight Crickets*: Low-frequency modulated nocturnal chirps
+  - *Eight-Bit Victory Chimes*: Retro coin chimes, card flips, and level-up arpeggios
 
-### 2. 🗂️ SuperMemo SM-2 Spaced Repetition Engine
-- Full implementation of the algorithmic formula used in **Anki**:
+### 2. SuperMemo SM-2 Spaced Repetition Engine
+- **Memory Preservation by Design**: A faithful implementation of the SuperMemo SM-2 interval expansion algorithm:
   $$EF' = EF + (0.1 - (5 - q) \times (0.08 + (5 - q) \times 0.02))$$
-- 3D perspective card flip animations with tactile feedback.
-- Keyboard shortcuts: <kbd>Space</kbd> to flip, <kbd>1</kbd> Again, <kbd>2</kbd> Hard, <kbd>3</kbd> Good, <kbd>4</kbd> Easy.
-- Export decks directly to **Anki-compatible TSV/CSV format** or full JSON backups.
+- **Tactile Card Laboratory**: Three-dimensional perspective flips with responsive keyboard navigation (<kbd>Space</kbd> to flip, <kbd>1</kbd> to <kbd>4</kbd> to grade recall).
+- **Anki Interoperability**: Export card decks directly into Anki-compatible TSV/CSV format or export complete JSON backups anytime.
 
-### 3. ✨ Gemini-Powered Note Synthesizer & Practice Quizzes
-- **Note-to-Cards**: Paste raw lecture notes or PDF text to instantly synthesize high-yield, conceptual active recall flashcards.
-- **AI Quiz Engine**: Generate custom multi-choice exams on any topic and difficulty level with step-by-step answer explanations and scoring.
-- **Zero-Config Intelligent Fallback**: Automatically provides high-fidelity simulated generation if no API key is provided, allowing instant demonstration out of the box!
+### 3. Note Synthesizer & Practice Exam Forge
+- **Notes into Memory Crystals**: Feed raw lecture paragraphs, textbook passages, or syllabi into the AI synthesizer to generate high-yield active recall flashcard pairs.
+- **Interactive Practice Quizzes**: Generate multi-choice challenge exams on any topic and difficulty level, complete with instant tactile feedback, score tallies, and in-depth conceptual explanations.
+- **Zero-Config Intelligent Fallback**: Pre-seeded with rich offline knowledge banks, ensuring the app works smoothly out of the box without requiring external API keys.
 
-### 4. 🎓 Socratic AI Homework & Concept Tutor
-- Encouraging academic mentor that guides students using the Socratic method rather than giving answers away.
-- Encourages first-principles thinking, provides guided hints, and breaks complex proofs into approachable steps.
+### 4. Socratic AI Homework & Concept Tutor
+- A patient, thoughtful academic guide that never simply spoils the answer.
+- Uses guiding questions, thought experiments, and step-by-step hints to help you deduce foundational principles yourself.
 
-### 5. 📅 Exam Revision Milestones Planner
-- Track countdown days to critical finals and midterms.
-- Break down study syllabi into prioritized, weighted topic checklists.
+### 5. Exam Milestone & Syllabus Planner
+- Keep track of countdown days until finals and midterms.
+- Break hefty syllabi into prioritized, difficulty-weighted milestone checklists.
 
-### 6. 📊 GitHub-Style Study Activity Heatmap & Analytics
-- Visual 60-day study consistency graph, retention rate tracking, and time distribution metrics.
+### 6. Study Consistency Heatmap & Analytics
+- A sixty-day activity heatmap celebrating daily consistency, long-term memory retention rates, and total focus hours.
 
 ---
 
-## 🏗️ Architecture & Project Structure
+## Architecture & Project Structure
 
 ```
 studyflow/
@@ -59,7 +58,7 @@ studyflow/
 │       └── deploy.yml            # CI/CD deployment pipeline for GitHub Pages
 ├── src/
 │   ├── types/
-│   │   └── index.ts              # Strict TypeScript domain interfaces
+│   │   └── index.ts              # Domain interfaces and type specifications
 │   ├── lib/
 │   │   ├── sm2.ts                # SuperMemo SM-2 algorithm & interval math
 │   │   ├── soundEngine.ts        # Procedural Web Audio API sound synthesizer
@@ -74,20 +73,20 @@ studyflow/
 │       ├── quiz/                 # Interactive quiz runner & AI test maker
 │       ├── tutor/                # Socratic AI chat assistant
 │       ├── planner/              # Exam countdown & milestone tracker
-│       └── analytics/            # GitHub study heatmap & backup utilities
+│       └── analytics/            # Study heatmap & backup utilities
 ├── index.html                    # Fonts: Plus Jakarta Sans, Press Start 2P, VT323
-├── tailwind.config.js            # Custom retro pixel shadows & pastel theme
+├── tailwind.config.js            # Retro pixel drop-shadows & pastel palette
 ├── package.json
 └── vite.config.ts
 ```
 
 ---
 
-## 🚀 Quick Start & Local Setup
+## Quick Start & Local Setup
 
 ### Prerequisites
-- [Node.js](https://nodejs.org/) (version 18 or higher recommended)
-- `npm` or `pnpm`
+- Node.js (version 18 or higher recommended)
+- npm or pnpm
 
 ### Installation
 ```bash
@@ -104,7 +103,7 @@ npm install
 npm run dev
 ```
 
-Visit `http://localhost:5173` in your browser!
+Visit `http://localhost:5173` in your browser.
 
 ### Build for Production
 ```bash
@@ -114,13 +113,13 @@ The optimized static build will be placed in the `dist/` directory, ready to dep
 
 ---
 
-## 🔑 Optional Gemini API Configuration
+## Optional Gemini API Configuration
 StudyFlow works immediately offline with built-in mock knowledge banks. To activate live generation with your own Google Gemini API key:
 1. Click the **"Gemini Key"** button in the top navigation bar.
-2. Enter your API key (get one free at [Google AI Studio](https://aistudio.google.com/app/apikey)).
-3. Keys are stored solely in your local browser storage (`localStorage`) and never leave your machine.
+2. Enter your API key (available from Google AI Studio).
+3. Keys are stored strictly in your browser local storage and never leave your machine.
 
 ---
 
-## 📜 License
-This project is open source and available under the [MIT License](LICENSE).
+## License
+This project is open source and distributed under the [MIT License](LICENSE).
