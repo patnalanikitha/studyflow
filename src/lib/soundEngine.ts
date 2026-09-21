@@ -5,25 +5,47 @@ class ProceduralSoundEngine {
   private currentSourceNodes: AudioNode[] = [];
   private activeSoundscape: SoundscapeType = 'none';
   private masterGain: GainNode | null = null;
+  private currentVolume: number = 0.7;
   private isMuted: boolean = false;
 
-  private initContext() {
-    if (!this.ctx) {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      this.ctx = new AudioCtx();
-      this.masterGain = this.ctx.createGain();
-      this.masterGain.gain.setValueAtTime(0.18, this.ctx.currentTime);
-      this.masterGain.connect(this.ctx.destination);
-    }
-    if (this.ctx.state === 'suspended') {
-      this.ctx.resume();
+  private async initContext(): Promise<AudioContext | null> {
+    try {
+      if (!this.ctx) {
+        const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        this.ctx = new AudioCtx();
+        this.masterGain = this.ctx.createGain();
+        const effectiveVol = this.isMuted ? 0 : this.currentVolume;
+        this.masterGain.gain.setValueAtTime(effectiveVol, this.ctx.currentTime);
+        this.masterGain.connect(this.ctx.destination);
+      }
+
+      if (this.ctx.state === 'suspended') {
+        await this.ctx.resume();
+      }
+
+      return this.ctx;
+    } catch (e) {
+      console.warn('AudioContext initialization error:', e);
+      return null;
     }
   }
 
+  public async resume() {
+    await this.initContext();
+  }
+
   public setVolume(vol: number) {
-    this.initContext();
+    this.currentVolume = Math.max(0, Math.min(1, vol));
     if (this.masterGain && this.ctx) {
-      this.masterGain.gain.setValueAtTime(Math.max(0, Math.min(1, vol)), this.ctx.currentTime);
+      const effectiveVol = this.isMuted ? 0 : this.currentVolume;
+      this.masterGain.gain.setValueAtTime(effectiveVol, this.ctx.currentTime);
+    }
+  }
+
+  public setMuted(muted: boolean) {
+    this.isMuted = muted;
+    if (this.masterGain && this.ctx) {
+      this.masterGain.gain.setValueAtTime(muted ? 0 : this.currentVolume, this.ctx.currentTime);
     }
   }
 
@@ -42,9 +64,9 @@ class ProceduralSoundEngine {
     this.activeSoundscape = 'none';
   }
 
-  public playSoundscape(type: SoundscapeType) {
-    this.initContext();
-    if (!this.ctx || !this.masterGain) return;
+  public async playSoundscape(type: SoundscapeType) {
+    const ctx = await this.initContext();
+    if (!ctx || !this.masterGain) return;
 
     if (this.activeSoundscape === type) return;
     this.stopSoundscape();
@@ -77,7 +99,7 @@ class ProceduralSoundEngine {
    */
   private startRainSoundscape() {
     if (!this.ctx || !this.masterGain) return;
-    const bufferSize = this.ctx.sampleRate * 3;
+    const bufferSize = this.ctx.sampleRate * 2;
     const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
     const output = noiseBuffer.getChannelData(0);
 
@@ -90,7 +112,7 @@ class ProceduralSoundEngine {
       b3 = 0.86650 * b3 + white * 0.3104856;
       b4 = 0.55000 * b4 + white * 0.5329522;
       b5 = -0.7616 * b5 - white * 0.0168980;
-      output[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+      output[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.25;
       b6 = white * 0.115926;
     }
 
@@ -101,10 +123,10 @@ class ProceduralSoundEngine {
     // Filter to sound like soft soothing rain
     const filter = this.ctx.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(900, this.ctx.currentTime);
+    filter.frequency.setValueAtTime(1100, this.ctx.currentTime);
 
     const rainGain = this.ctx.createGain();
-    rainGain.gain.setValueAtTime(0.5, this.ctx.currentTime);
+    rainGain.gain.setValueAtTime(0.8, this.ctx.currentTime);
 
     whiteNoiseSource.connect(filter);
     filter.connect(rainGain);
@@ -119,7 +141,7 @@ class ProceduralSoundEngine {
    */
   private startBrownNoise() {
     if (!this.ctx || !this.masterGain) return;
-    const bufferSize = this.ctx.sampleRate * 3;
+    const bufferSize = this.ctx.sampleRate * 2;
     const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
     const output = noiseBuffer.getChannelData(0);
 
@@ -128,7 +150,7 @@ class ProceduralSoundEngine {
       const white = Math.random() * 2 - 1;
       output[i] = (lastOut + 0.02 * white) / 1.02;
       lastOut = output[i];
-      output[i] *= 3.5;
+      output[i] *= 4.5;
     }
 
     const brownSource = this.ctx.createBufferSource();
@@ -137,13 +159,17 @@ class ProceduralSoundEngine {
 
     const filter = this.ctx.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(450, this.ctx.currentTime);
+    filter.frequency.setValueAtTime(500, this.ctx.currentTime);
+
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.7, this.ctx.currentTime);
 
     brownSource.connect(filter);
-    filter.connect(this.masterGain);
+    filter.connect(gain);
+    gain.connect(this.masterGain);
     brownSource.start();
 
-    this.currentSourceNodes.push(brownSource, filter);
+    this.currentSourceNodes.push(brownSource, filter, gain);
   }
 
   /**
@@ -151,12 +177,11 @@ class ProceduralSoundEngine {
    */
   private startCafeAmbiance() {
     if (!this.ctx || !this.masterGain) return;
-    // Dual filtered noise layers
-    const bufferSize = this.ctx.sampleRate * 3;
+    const bufferSize = this.ctx.sampleRate * 2;
     const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
     const output = noiseBuffer.getChannelData(0);
     for (let i = 0; i < bufferSize; i++) {
-      output[i] = (Math.random() * 2 - 1) * 0.15;
+      output[i] = (Math.random() * 2 - 1) * 0.35;
     }
 
     const source = this.ctx.createBufferSource();
@@ -165,14 +190,18 @@ class ProceduralSoundEngine {
 
     const bandpass = this.ctx.createBiquadFilter();
     bandpass.type = 'bandpass';
-    bandpass.frequency.setValueAtTime(650, this.ctx.currentTime);
-    bandpass.Q.setValueAtTime(1.5, this.ctx.currentTime);
+    bandpass.frequency.setValueAtTime(700, this.ctx.currentTime);
+    bandpass.Q.setValueAtTime(1.2, this.ctx.currentTime);
+
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.65, this.ctx.currentTime);
 
     source.connect(bandpass);
-    bandpass.connect(this.masterGain);
+    bandpass.connect(gain);
+    gain.connect(this.masterGain);
     source.start();
 
-    this.currentSourceNodes.push(source, bandpass);
+    this.currentSourceNodes.push(source, bandpass, gain);
   }
 
   /**
@@ -185,16 +214,16 @@ class ProceduralSoundEngine {
     const panLeft = this.ctx.createStereoPanner ? this.ctx.createStereoPanner() : null;
     const panRight = this.ctx.createStereoPanner ? this.ctx.createStereoPanner() : null;
 
-    // Left ear: 216Hz, Right ear: 226Hz => 10Hz Alpha focus frequency
+    // 216Hz and 226Hz -> 10Hz difference creates Alpha flow frequency
     oscLeft.frequency.setValueAtTime(216, this.ctx.currentTime);
     oscRight.frequency.setValueAtTime(226, this.ctx.currentTime);
 
     const gain = this.ctx.createGain();
-    gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+    gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
 
     if (panLeft && panRight) {
-      panLeft.pan.setValueAtTime(-0.9, this.ctx.currentTime);
-      panRight.pan.setValueAtTime(0.9, this.ctx.currentTime);
+      panLeft.pan.setValueAtTime(-0.85, this.ctx.currentTime);
+      panRight.pan.setValueAtTime(0.85, this.ctx.currentTime);
 
       oscLeft.connect(panLeft);
       panLeft.connect(gain);
@@ -218,16 +247,16 @@ class ProceduralSoundEngine {
     if (!this.ctx || !this.masterGain) return;
     const osc = this.ctx.createOscillator();
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(4500, this.ctx.currentTime);
+    osc.frequency.setValueAtTime(4200, this.ctx.currentTime);
 
     const lfo = this.ctx.createOscillator();
-    lfo.frequency.setValueAtTime(14, this.ctx.currentTime);
+    lfo.frequency.setValueAtTime(12, this.ctx.currentTime);
 
     const lfoGain = this.ctx.createGain();
-    lfoGain.gain.setValueAtTime(0.03, this.ctx.currentTime);
+    lfoGain.gain.setValueAtTime(0.08, this.ctx.currentTime);
 
     const gain = this.ctx.createGain();
-    gain.gain.setValueAtTime(0.04, this.ctx.currentTime);
+    gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
 
     lfo.connect(gain.gain);
     osc.connect(gain);
@@ -241,13 +270,13 @@ class ProceduralSoundEngine {
   /**
    * Whimsical 8-bit retro sound effects
    */
-  public playRetroChime(type: 'coin' | 'levelUp' | 'pomodoroDone' | 'cardFlip' | 'click') {
-    this.initContext();
-    if (!this.ctx || !this.masterGain || this.isMuted) return;
+  public async playRetroChime(type: 'coin' | 'levelUp' | 'pomodoroDone' | 'cardFlip' | 'click') {
+    const ctx = await this.initContext();
+    if (!ctx || !this.masterGain || this.isMuted) return;
 
-    const t = this.ctx.currentTime;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
 
     osc.connect(gain);
     gain.connect(this.masterGain);
@@ -257,54 +286,54 @@ class ProceduralSoundEngine {
       osc.type = 'square';
       osc.frequency.setValueAtTime(987.77, t);
       osc.frequency.setValueAtTime(1318.51, t + 0.08);
-      gain.gain.setValueAtTime(0.15, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+      gain.gain.setValueAtTime(0.3, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.38);
       osc.start(t);
-      osc.stop(t + 0.35);
+      osc.stop(t + 0.38);
     } else if (type === 'cardFlip') {
       osc.type = 'triangle';
       osc.frequency.setValueAtTime(440, t);
-      osc.frequency.exponentialRampToValueAtTime(880, t + 0.07);
-      gain.gain.setValueAtTime(0.1, t);
-      gain.gain.exponentialRampToValueAtTime(0.01, t + 0.07);
+      osc.frequency.exponentialRampToValueAtTime(880, t + 0.08);
+      gain.gain.setValueAtTime(0.25, t);
+      gain.gain.exponentialRampToValueAtTime(0.01, t + 0.08);
       osc.start(t);
-      osc.stop(t + 0.07);
+      osc.stop(t + 0.08);
     } else if (type === 'click') {
       osc.type = 'square';
-      osc.frequency.setValueAtTime(600, t);
-      gain.gain.setValueAtTime(0.04, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
+      osc.frequency.setValueAtTime(550, t);
+      gain.gain.setValueAtTime(0.15, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.05);
       osc.start(t);
-      osc.stop(t + 0.04);
+      osc.stop(t + 0.05);
     } else if (type === 'levelUp') {
       // 8-bit victory arpeggio: C5, E5, G5, C6
       const notes = [523.25, 659.25, 783.99, 1046.5];
       notes.forEach((freq, idx) => {
-        const noteOsc = this.ctx!.createOscillator();
-        const noteGain = this.ctx!.createGain();
+        const noteOsc = ctx.createOscillator();
+        const noteGain = ctx.createGain();
         noteOsc.type = 'square';
         noteOsc.frequency.setValueAtTime(freq, t + idx * 0.09);
-        noteGain.gain.setValueAtTime(0.12, t + idx * 0.09);
-        noteGain.gain.exponentialRampToValueAtTime(0.001, t + idx * 0.09 + 0.15);
+        noteGain.gain.setValueAtTime(0.28, t + idx * 0.09);
+        noteGain.gain.exponentialRampToValueAtTime(0.001, t + idx * 0.09 + 0.18);
         noteOsc.connect(noteGain);
         noteGain.connect(this.masterGain!);
         noteOsc.start(t + idx * 0.09);
-        noteOsc.stop(t + idx * 0.09 + 0.16);
+        noteOsc.stop(t + idx * 0.09 + 0.19);
       });
     } else if (type === 'pomodoroDone') {
       // Cozy bell chord
-      const chords = [523.25, 659.25, 783.99]; // C major
+      const chords = [523.25, 659.25, 783.99, 1046.5];
       chords.forEach(freq => {
-        const chordOsc = this.ctx!.createOscillator();
-        const chordGain = this.ctx!.createGain();
+        const chordOsc = ctx.createOscillator();
+        const chordGain = ctx.createGain();
         chordOsc.type = 'sine';
         chordOsc.frequency.setValueAtTime(freq, t);
-        chordGain.gain.setValueAtTime(0.2, t);
-        chordGain.gain.exponentialRampToValueAtTime(0.0001, t + 1.8);
+        chordGain.gain.setValueAtTime(0.35, t);
+        chordGain.gain.exponentialRampToValueAtTime(0.0001, t + 2.2);
         chordOsc.connect(chordGain);
         chordGain.connect(this.masterGain!);
         chordOsc.start(t);
-        chordOsc.stop(t + 1.8);
+        chordOsc.stop(t + 2.2);
       });
     }
   }

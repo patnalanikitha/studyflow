@@ -64,7 +64,7 @@ export const PomodoroTimer: React.FC = () => {
   const [timeLeft, setTimeLeft] = useState<number>(() => timerSettings.pomodoro * 60);
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [soundscape, setSoundscape] = useState<SoundscapeType>('none');
-  const [volume, setVolume] = useState<number>(0.2);
+  const [volume, setVolume] = useState<number>(0.7);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [showShop, setShowShop] = useState<boolean>(false);
   const [showSettingsModal, setShowSettingsModal] = useState<boolean>(false);
@@ -112,9 +112,9 @@ export const PomodoroTimer: React.FC = () => {
     };
   }, [isRunning, timeLeft, mode, timerSettings, recordFocusSession]);
 
-  // Soundscape synchronization
+  // Soundscape synchronization - plays whenever a soundscape is selected
   useEffect(() => {
-    if (isRunning && soundscape !== 'none' && !isMuted) {
+    if (soundscape !== 'none' && !isMuted) {
       soundEngine.playSoundscape(soundscape);
     } else {
       soundEngine.stopSoundscape();
@@ -122,7 +122,7 @@ export const PomodoroTimer: React.FC = () => {
     return () => {
       soundEngine.stopSoundscape();
     };
-  }, [isRunning, soundscape, isMuted]);
+  }, [soundscape, isMuted]);
 
   useEffect(() => {
     soundEngine.setVolume(isMuted ? 0 : volume);
@@ -393,16 +393,35 @@ export const PomodoroTimer: React.FC = () => {
                 <Volume2 className="w-4 h-4 text-pink-400" />
                 PROCEDURAL SOUNDSCAPES
               </span>
-              <button
-                onClick={() => setIsMuted(prev => !prev)}
-                className="text-slate-400 hover:text-white"
-              >
-                {isMuted ? (
-                  <VolumeX className="w-4 h-4 text-red-400" />
-                ) : (
-                  <Volume2 className="w-4 h-4 text-emerald-400" />
-                )}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={async () => {
+                    await soundEngine.resume();
+                    soundEngine.playRetroChime('coin');
+                  }}
+                  className="px-2 py-0.5 bg-purple-600 hover:bg-purple-500 text-yellow-300 border border-purple-400 rounded text-[9px] font-pixel flex items-center gap-1 active:translate-y-0.5 transition-transform"
+                  title="Test Retro Audio Output"
+                >
+                  <span>🔔 TEST CHIME</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setIsMuted(prev => {
+                      const next = !prev;
+                      soundEngine.setMuted(next);
+                      return next;
+                    });
+                  }}
+                  className="text-slate-400 hover:text-white"
+                  title={isMuted ? 'Unmute' : 'Mute'}
+                >
+                  {isMuted ? (
+                    <VolumeX className="w-4 h-4 text-red-400" />
+                  ) : (
+                    <Volume2 className="w-4 h-4 text-emerald-400" />
+                  )}
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -418,9 +437,12 @@ export const PomodoroTimer: React.FC = () => {
               ).map(snd => (
                 <button
                   key={snd.id}
-                  onClick={() => {
+                  onClick={async () => {
+                    await soundEngine.resume();
                     setSoundscape(snd.id);
-                    soundEngine.playRetroChime('click');
+                    if (snd.id !== 'none') {
+                      soundEngine.playRetroChime('click');
+                    }
                   }}
                   className={`py-1.5 px-2 rounded-lg text-xs font-sans font-medium flex items-center gap-1.5 border transition-all ${
                     soundscape === snd.id
@@ -443,7 +465,11 @@ export const PomodoroTimer: React.FC = () => {
                 max="1"
                 step="0.05"
                 value={volume}
-                onChange={e => setVolume(parseFloat(e.target.value))}
+                onChange={e => {
+                  const val = parseFloat(e.target.value);
+                  setVolume(val);
+                  soundEngine.setVolume(val);
+                }}
                 className="w-full accent-pink-500 cursor-pointer h-1.5 bg-slate-800 rounded-lg"
               />
               <span className="text-[10px] font-mono text-slate-400 w-8">
