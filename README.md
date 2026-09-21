@@ -92,7 +92,7 @@ studyflow/
 ### Installation
 ```bash
 # 1. Clone this repository
-git clone https://github.com/your-username/studyflow.git
+git clone https://github.com/patnalanikitha/studyflow.git
 
 # 2. Navigate to project directory
 cd studyflow

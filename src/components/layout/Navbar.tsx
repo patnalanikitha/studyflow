@@ -64,7 +64,7 @@ export const Navbar: React.FC = () => {
 
             {/* GitHub Project Link */}
             <a
-              href="https://github.com"
+              href="https://github.com/patnalanikitha/studyflow"
               target="_blank"
               rel="noreferrer"
               title="View on GitHub"
